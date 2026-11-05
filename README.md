@@ -55,15 +55,23 @@ Le sélecteur « Forme de la courbe », sous la configuration, propose quatre ch
 | Choix | Formule x(y) | Effet |
 | --- | --- | --- |
 | COS | `0.2 + 1.5 * sin(pi * y)` | Remplace la courbe ; choix initial |
-| P9 | `0.2 + y + 1.5 * sin(pi * y)` | Remplace la courbe |
-| P18 | `0.2 + 2*y + 1.5 * sin(pi * y)` | Remplace la courbe |
+| P9 | `0.2 + 1.5 * sin(pi * (y + alphaP9*y*(1-y)))` | Remplace la courbe, AO=+9,0 % |
+| P18 | `0.2 + 1.5 * sin(pi * (y + alphaP18*y*(1-y)))` | Remplace la courbe, AO=+18,0 % |
 | custom | Aucune formule appliquée | Conserve exactement la courbe affichée |
 
-Les trois fonctions sont dans `src/curves.cpp`, qui remplace `src/initial_curve.cpp`. Pour modifier une forme, éditer sa fonction puis recompiler. La courbe possède 1 025 échantillons, évalués avec `y=1` en haut et `y=0` en bas. Les valeurs sont bornées à `[0,2]`, notamment pour les formes P9 et P18 qui dépassent 2 ; une valeur non finie est remplacée par 0.
+Les trois fonctions sont dans `src/curves.cpp`, qui remplace `src/initial_curve.cpp`. Pour modifier une forme, éditer sa fonction puis recompiler. La courbe possède 1 025 échantillons, évalués avec `y=1` en haut et `y=0` en bas. Les valeurs restent bornées à `[0,2]` ; une valeur non finie est remplacée par 0. Les trois formes actuelles restent naturellement entre 0.2 et 1.7.
 
 Dès que le dessin manuel commence dans le repère, le sélecteur passe automatiquement à `custom`, sans réinitialiser la courbe. Sélectionner une forme prédéfinie remplace ensuite le tracé manuel et actualise AO.
 
 Tracer remplace les abscisses des hauteurs parcourues ; un nouveau clic ne relie pas deux traits distincts. Les coordonnées sont bornées au repère quand la souris en sort pendant un tracé. Une perte de capture ou un redimensionnement interrompt le geste. Les valeurs physiques sont conservées au redimensionnement.
+
+### Calcul d’alpha à la compilation
+
+La famille commune est `0.2 + 1.5 * sin(pi * (y + alpha*y*(1-y)))` : COS correspond à alpha=0. Dans `src/curves.cpp`, les constantes `constexpr kAlphaP9` et `constexpr kAlphaP18` sont déterminées par 36 étapes de dichotomie sur [-1,0], en ciblant respectivement AO=0.09 et AO=0.18. Un alpha négatif déplace l’aire vers le haut.
+
+Le calcul utilise les mêmes 1 025 échantillons, les mêmes limites et la même intégration par trapèzes que `ao.cpp`. Comme `std::sin` n’est pas constexpr en C++17, la calibration utilise une approximation de sinus par série avec réduction de l’argument. Le dessin utilise toujours `std::sin` ; les tests vérifient indépendamment AO sur ces valeurs à l’exécution.
+
+Les résultats sont numériques, à la précision double : aucune résolution d’alpha n’est effectuée au lancement ou lors d’un changement de forme. Les déclarations constexpr et les assertions de compilation imposent le calcul pendant la compilation. CMake relève le budget d’évaluation constexpr pour ce fichier avec MSVC. Modifier la formule, les limites ou le nombre d’échantillons exige de recompiler ; si les cibles deviennent inatteignables dans l’intervalle choisi, la compilation échoue explicitement.
 
 ## AO
 
@@ -80,13 +88,13 @@ AO est mis à jour à chaque modification de la courbe, indépendamment des para
 Vérifications manuelles :
 
 1. Au lancement : COS sélectionné, forme symétrique et `AO=0,0 %`
-2. Choisir P9, puis P18 : remplacement immédiat de la courbe, borne droite à 2 et AO recalculé
+2. Choisir P9, puis P18 : remplacement immédiat de la courbe, AO respectivement +9,0 % et +18,0 %
 3. Choisir custom : aucun changement de la courbe ni d’AO
 4. Choisir COS, commencer un dessin au bouton gauche : custom est automatiquement sélectionné ; le tracé reste modifiable
 5. Choisir P9 après un tracé manuel, puis COS : les formes prédéfinies sont rétablies
 6. Redimensionner la fenêtre : conservation du tracé, du choix et d’AO
 
-Les tests `ao` couvrent l’aire nulle, une courbe constante, des triangles de résultat analytique ±50 %, les cas ±100 % et la conversion en abscisses physiques. Les tests `curves` couvrent les trois formules, l’orientation haut/bas, la limitation à 2, la symétrie de COS, la conservation exacte du tracé en custom et le rétablissement d’un modèle après dessin. Le calcul RFTC reste indépendant du dessin.
+Les tests `ao` couvrent l’aire nulle, une courbe constante, des triangles de résultat analytique ±50 %, les cas ±100 % et la conversion en abscisses physiques. Les tests `curves` couvrent les trois formules, l’orientation haut/bas, les cibles AO +9 % et +18 % à une tolérance de 1e-10 sur la fraction, la symétrie de COS, la conservation exacte du tracé en custom et le rétablissement d’un modèle après dessin. Le calcul RFTC reste indépendant du dessin.
 
 ## Configurations
 
