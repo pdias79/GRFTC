@@ -20,6 +20,3 @@ inline bool ParseNumber(std::wstring text, double& value) {
     value = parsed;
     return true;
 }
-inline double EvaluateRftc(double power, double temperature) {
-    return power - temperature;
-}
