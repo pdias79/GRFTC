@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdio>
 #include "numeric.h"
+#include "canvas.h"
 
 namespace {
 constexpr int kPanelWidth = 300;
@@ -19,6 +20,8 @@ struct App {
     std::array<HWND, 5> labels{};
     std::array<HWND, 5> edits{};
     HWND result{};
+    HWND canvasWindow{};
+    Canvas canvas;
     HFONT font{};
     bool ready = false;
 };
@@ -56,6 +59,8 @@ void Layout(HWND window, App& app) {
         MoveWindow(app.edits[i], 20, y + 24, 260, 28, TRUE);
     }
     MoveWindow(app.result, 20, std::max(370L, r.bottom - 54), 270, 30, TRUE);
+    MoveWindow(app.canvasWindow, kPanelWidth + 1, 0,
+        std::max(0L, r.right - kPanelWidth - 1), r.bottom, TRUE);
     InvalidateRect(window, nullptr, TRUE);
 }
 LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -76,6 +81,9 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         }
         app->result = AddControl(window, L"STATIC", L"RFTC=0", SS_LEFT, 0, app->font);
         if (!app->result) return -1;
+        app->canvasWindow = CreateWindowExW(0, kCanvasClass, L"", WS_CHILD | WS_VISIBLE,
+            0, 0, 0, 0, window, nullptr, GetModuleHandleW(nullptr), &app->canvas);
+        if (!app->canvasWindow) return -1;
         app->ready = true;
         Layout(window, *app);
         return 0;
@@ -93,8 +101,6 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         HDC dc = BeginPaint(window, &paint);
         RECT client{};
         GetClientRect(window, &client);
-        RECT canvas{kPanelWidth + 1, 0, client.right, client.bottom};
-        FillRect(dc, &canvas, static_cast<HBRUSH>(GetStockObject(WHITE_BRUSH)));
         MoveToEx(dc, kPanelWidth, 0, nullptr);
         LineTo(dc, kPanelWidth, client.bottom);
         EndPaint(window, &paint);
@@ -114,7 +120,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1);
     wc.lpszClassName = kClassName;
-    if (!RegisterClassW(&wc)) return 1;
+    if (!RegisterClassW(&wc) || !RegisterCanvas(instance)) return 1;
     App app;
     HWND window = CreateWindowExW(WS_EX_CONTROLPARENT, kClassName, L"GRFTC",
         WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT,
