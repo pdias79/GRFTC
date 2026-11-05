@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 project(GRFTC LANGUAGES CXX)
+# The C++17 compile-time calibration integrates the curve while bisecting alpha.
+# This source is shared by the app and the curves test target.
+set_property(SOURCE src/curves.cpp APPEND PROPERTY COMPILE_OPTIONS
+    "$<$<CXX_COMPILER_ID:MSVC>:/constexpr:steps100000000>")
 if(NOT WIN32)
     message(FATAL_ERROR "GRFTC requires Windows and the Windows SDK")
 endif()

@@ -5,6 +5,10 @@ struct Curve;
 enum class CurveShape { Cos, P9, P18, Custom };
 inline constexpr std::array<const wchar_t*, 4> kCurveNames{L"COS", L"P9", L"P18", L"custom"};
 
+double CurveWithAlpha(double y, double alpha);
+// Return the constants computed at compile time in curves.cpp (no runtime solving).
+double AlphaP9();
+double AlphaP18();
 double COS(double y);
 double P9(double y);
 double P18(double y);
