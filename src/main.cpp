@@ -12,7 +12,7 @@
 #include "statepoint.h"
 #include "configurations.h"
 #include "RFTC.h"
-#include "initial_curve.h"
+#include "curves.h"
 #include "ao.h"
 #include "canvas.h"
 
@@ -21,12 +21,15 @@ constexpr int kPanelWidth = 300;
 constexpr int kFirstEdit = 100;
 constexpr wchar_t kClassName[] = L"GRFTCWindow";
 constexpr int kConfigurationId = 90;
+constexpr int kCurveShapeId = 91;
 struct App {
     std::array<HWND, kChamps.size()> labels{};
     std::array<HWND, kChamps.size()> edits{};
     std::array<std::wstring, kChamps.size()> lastValid{};
     HWND configurationLabel{};
     HWND configuration{};
+    HWND curveShapeLabel{};
+    HWND curveShape{};
     std::vector<std::string> configurations;
     HWND result{};
     HWND aoResult{};
@@ -145,13 +148,15 @@ void Layout(HWND window, App& app) {
     GetClientRect(window, &r);
     MoveWindow(app.configurationLabel, 20, 24, 260, 22, TRUE);
     MoveWindow(app.configuration, 20, 48, 260, 200, TRUE);
+    MoveWindow(app.curveShapeLabel, 20, 94, 260, 22, TRUE);
+    MoveWindow(app.curveShape, 20, 118, 260, 160, TRUE);
     for (size_t i = 0; i < app.edits.size(); ++i) {
-        const int y = 104 + static_cast<int>(i) * 60;
+        const int y = 164 + static_cast<int>(i) * 60;
         MoveWindow(app.labels[i], 20, y, 260, 22, TRUE);
         MoveWindow(app.edits[i], 20, y + 24, 260, 28, TRUE);
     }
-    MoveWindow(app.result, 20, std::max(480L, r.bottom - 84), 270, 30, TRUE);
-    MoveWindow(app.aoResult, 20, std::max(510L, r.bottom - 54), 270, 30, TRUE);
+    MoveWindow(app.result, 20, std::max(540L, r.bottom - 84), 270, 30, TRUE);
+    MoveWindow(app.aoResult, 20, std::max(570L, r.bottom - 54), 270, 30, TRUE);
     MoveWindow(app.canvasWindow, kPanelWidth + 1, 0,
         std::max(0L, r.right - kPanelWidth - 1), r.bottom, TRUE);
     InvalidateRect(window, nullptr, TRUE);
@@ -169,6 +174,15 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         app->configuration = AddControl(window, L"COMBOBOX", L"",
             WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL, kConfigurationId, app->font);
         if (!app->configurationLabel || !app->configuration || !LoadConfigurations(window, *app)) return -1;
+        app->curveShapeLabel = AddControl(window, L"STATIC", L"Forme de la courbe", 0, 0, app->font);
+        app->curveShape = AddControl(window, L"COMBOBOX", L"",
+            WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL, kCurveShapeId, app->font);
+        if (!app->curveShapeLabel || !app->curveShape) return -1;
+        for (const auto* name : kCurveNames) {
+            const auto item = SendMessageW(app->curveShape, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(name));
+            if (item == CB_ERR || item == CB_ERRSPACE) return -1;
+        }
+        SendMessageW(app->curveShape, CB_SETCURSEL, static_cast<WPARAM>(CurveShape::Cos), 0);
         for (size_t i = 0; i < app->edits.size(); ++i) {
             app->labels[i] = AddControl(window, L"STATIC", kChamps[i].nom, 0, 0, app->font);
             app->edits[i] = AddControl(window, L"EDIT", kChamps[i].initial, WS_TABSTOP | ES_AUTOHSCROLL,
@@ -181,7 +195,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         if (!app->result) return -1;
         app->aoResult = AddControl(window, L"STATIC", L"", SS_LEFT, 0, app->font);
         if (!app->aoResult) return -1;
-        InitializeCurve(app->canvas.curve);
+        ApplyCurve(app->canvas.curve, CurveShape::Cos);
         UpdateAO(*app);
         app->canvasWindow = CreateWindowExW(0, kCanvasClass, L"", WS_CHILD | WS_VISIBLE,
             0, 0, 0, 0, window, nullptr, GetModuleHandleW(nullptr), &app->canvas);
@@ -200,17 +214,28 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
                     ValidateOnExit(window, *app, static_cast<std::size_t>(id - kFirstEdit));
             } else if (id == kConfigurationId && notification == CBN_SELCHANGE) {
                 UpdateResult(*app);
+            } else if (id == kCurveShapeId && notification == CBN_SELCHANGE) {
+                const auto selected = SendMessageW(app->curveShape, CB_GETCURSEL, 0, 0);
+                if (selected >= 0 && selected < static_cast<LRESULT>(kCurveNames.size())
+                    && ApplyCurve(app->canvas.curve, static_cast<CurveShape>(selected))) {
+                    UpdateAO(*app);
+                    InvalidateRect(app->canvasWindow, nullptr, FALSE);
+                }
             }
         }
         return 0;
     case kCurveChanged:
-        if (app) UpdateAO(*app);
+        if (app) {
+            // Only mouse drawing sends this notification; preset selection does not.
+            SendMessageW(app->curveShape, CB_SETCURSEL, static_cast<WPARAM>(CurveShape::Custom), 0);
+            UpdateAO(*app);
+        }
         return 0;
     case WM_SIZE:
         if (app && app->ready) Layout(window, *app);
         return 0;
     case WM_GETMINMAXINFO:
-        reinterpret_cast<MINMAXINFO*>(lParam)->ptMinTrackSize = {700, 630};
+        reinterpret_cast<MINMAXINFO*>(lParam)->ptMinTrackSize = {700, 690};
         return 0;
     case WM_PAINT: {
         PAINTSTRUCT paint{};
@@ -244,7 +269,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     App app;
     HWND window = CreateWindowExW(WS_EX_CONTROLPARENT, kClassName, L"GRFTC",
         WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT,
-        900, 680, nullptr, nullptr, instance, &app);
+        900, 740, nullptr, nullptr, instance, &app);
     if (!window) {
         MessageBoxW(nullptr, L"Impossible de cr\u00e9er la fen\u00eatre.", L"GRFTC", MB_ICONERROR);
         return 1;
