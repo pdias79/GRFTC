@@ -14,6 +14,8 @@ Petite application Windows native en C++17, avec contrôles Win32 et rendu GDI, 
 - Canvas blanc GDI : dessin de `x = f(y)` au bouton gauche et remplissage rouge jusqu’à `x=0`
 - Une seule abscisse par hauteur ; les mouvements rapides sont interpolés
 - Dessin conservé lors du redimensionnement ; double tampon pour limiter le scintillement
+- Courbe initiale programmable dans `src/initial_curve.cpp`
+- AO affiché sous RFTC en pourcentage, avec une décimale, et actualisé pendant le dessin
 
 ## Compilation sous Windows
 
@@ -44,11 +46,35 @@ Les seules bibliothèques graphiques utilisées sont celles de Windows (`user32`
 
 La compilation et les nouvelles interactions graphiques sous Windows restent à valider avant fusion.
 
-## Coordonnées de la courbe
+## Coordonnées et courbe initiale
 
-Le repère utilise provisoirement `x` et `y` entre 0 et 1 : origine en bas à gauche, `y` croissant vers le haut. La courbe possède 1 025 échantillons, initialement à `x=0`. Tracer remplace les abscisses des hauteurs parcourues ; un nouveau clic ne relie pas deux traits distincts. Les coordonnées sont bornées au repère quand la souris en sort pendant un tracé. Une perte de capture ou un redimensionnement interrompt le geste.
+Le repère utilise `x` entre 0 et 2 et `y` entre 0 et 1 : origine en bas à gauche, `y` croissant vers le haut. Les limites sont centralisées dans `src/limites_graph.h` et les axes affichent leurs valeurs. L’abscisse de gauche reste 0 pour représenter l’aire jusqu’à l’axe `x=0`.
 
-Les tests `curve` vérifient l’interpolation dans les deux sens, le remplacement à hauteur constante et les limites du repère. Le calcul RFTC reste indépendant du dessin.
+Modifier la fonction `InitialCurve(double y)` dans `src/initial_curve.cpp`, puis recompiler, pour choisir la forme au démarrage. Elle contient actuellement :
+
+```cpp
+return 0.2 + 1.5 * std::sin(2.0 * pi * y);
+```
+
+La courbe possède 1 025 échantillons, rangés du haut vers le bas. La fonction est évaluée avec `y=1` en haut et `y=0` en bas. **Les valeurs négatives ou supérieures à 2 sont bornées à la zone visible** ; une valeur non finie est remplacée par 0. Cette convention est nécessaire ici car le sinus demandé descend jusqu’à -1.3.
+
+Tracer remplace les abscisses des hauteurs parcourues ; un nouveau clic ne relie pas deux traits distincts. Les coordonnées sont bornées au repère quand la souris en sort pendant un tracé. Une perte de capture ou un redimensionnement interrompt le geste. Les valeurs physiques sont conservées au redimensionnement.
+
+## AO
+
+Le fichier `src/ao.cpp` définit `double AO(const Curve& curve)`, qui renvoie :
+
+```text
+(aire de la moitié haute - aire de la moitié basse) / aire totale
+```
+
+Les aires sont celles de la courbe bornée affichée en rouge. Elles sont intégrées par trapèzes, avec une séparation à mi-hauteur (`y=0.5` pour les limites actuelles). Si l’aire totale vaut 0, AO vaut 0. Le calcul renvoie une fraction ; l’interface la multiplie par 100 et affiche une seule décimale avec une virgule, par exemple `AO=-98,5 %` au démarrage avec la formule actuelle.
+
+AO est mis à jour à chaque modification de la courbe, indépendamment des paramètres RFTC. Une courbe symétrique donne 0 %, une aire uniquement dans la moitié haute donne +100 %, et une aire uniquement dans la moitié basse donne -100 %.
+
+Vérifications manuelles : au lancement, contrôler la forme sinusoïdale bornée et `AO=-98,5 %`, puis dessiner dans les deux moitiés et vérifier l’actualisation d’AO. Redimensionner la fenêtre doit conserver la forme et AO. Pour tester une autre initialisation, essayer `return 1.0;` dans `InitialCurve` (AO=0,0 %), puis `return 0.0;` (AO=0,0 % également).
+
+Les tests `ao` couvrent l’aire nulle, une courbe constante, des triangles de résultat analytique ±50 %, les cas ±100 %, l’orientation de la courbe initiale et la conversion entre pixels normalisés et abscisses physiques. Le calcul RFTC reste indépendant du dessin.
 
 ## Configurations
 
@@ -87,4 +113,4 @@ Avec les valeurs initiales, CONFIG1 donne `-190` et les autres configurations do
 
 Vérifier également le rétablissement de 100 après une première saisie invalide au démarrage, la conservation des virgules dans une saisie validée, les débits 30 et 110 acceptés, et 29.99 et 110.01 refusés.
 
-Les tests `numeric`, `statepoint` et `curve` couvrent la conversion numérique, les deux formules, les valeurs initiales, les limites inclusives et leur dépassement, la lecture d’une liste de configurations de longueur variable et l’interpolation de la courbe.
+Les tests `numeric`, `statepoint`, `curve` et `ao` couvrent la conversion numérique, les deux formules, les valeurs initiales, les limites inclusives et leur dépassement, la lecture d’une liste de configurations de longueur variable et l’interpolation de la courbe.

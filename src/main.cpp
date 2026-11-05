@@ -12,6 +12,8 @@
 #include "statepoint.h"
 #include "configurations.h"
 #include "RFTC.h"
+#include "initial_curve.h"
+#include "ao.h"
 #include "canvas.h"
 
 namespace {
@@ -27,6 +29,7 @@ struct App {
     HWND configuration{};
     std::vector<std::string> configurations;
     HWND result{};
+    HWND aoResult{};
     HWND canvasWindow{};
     Canvas canvas;
     HFONT font{};
@@ -128,6 +131,15 @@ void UpdateResult(App& app) {
     else std::swprintf(text, 128, L"RFTC=\u2014 (hors limites)");
     SetWindowTextW(app.result, text);
 }
+void UpdateAO(App& app) {
+    if (!app.aoResult) return;
+    const double percent = AO(app.canvas.curve) * 100.0;
+    wchar_t text[64]{};
+    // Suppress a negative zero after rounding to one decimal place.
+    std::swprintf(text, 64, L"AO=%.1f %%", std::abs(percent) < 0.05 ? 0.0 : percent);
+    for (auto& c : text) if (c == L'.') c = L',';
+    SetWindowTextW(app.aoResult, text);
+}
 void Layout(HWND window, App& app) {
     RECT r{};
     GetClientRect(window, &r);
@@ -138,7 +150,8 @@ void Layout(HWND window, App& app) {
         MoveWindow(app.labels[i], 20, y, 260, 22, TRUE);
         MoveWindow(app.edits[i], 20, y + 24, 260, 28, TRUE);
     }
-    MoveWindow(app.result, 20, std::max(480L, r.bottom - 54), 270, 30, TRUE);
+    MoveWindow(app.result, 20, std::max(480L, r.bottom - 84), 270, 30, TRUE);
+    MoveWindow(app.aoResult, 20, std::max(510L, r.bottom - 54), 270, 30, TRUE);
     MoveWindow(app.canvasWindow, kPanelWidth + 1, 0,
         std::max(0L, r.right - kPanelWidth - 1), r.bottom, TRUE);
     InvalidateRect(window, nullptr, TRUE);
@@ -166,6 +179,10 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         }
         app->result = AddControl(window, L"STATIC", L"RFTC=0", SS_LEFT, 0, app->font);
         if (!app->result) return -1;
+        app->aoResult = AddControl(window, L"STATIC", L"", SS_LEFT, 0, app->font);
+        if (!app->aoResult) return -1;
+        InitializeCurve(app->canvas.curve);
+        UpdateAO(*app);
         app->canvasWindow = CreateWindowExW(0, kCanvasClass, L"", WS_CHILD | WS_VISIBLE,
             0, 0, 0, 0, window, nullptr, GetModuleHandleW(nullptr), &app->canvas);
         if (!app->canvasWindow) return -1;
@@ -186,11 +203,14 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             }
         }
         return 0;
+    case kCurveChanged:
+        if (app) UpdateAO(*app);
+        return 0;
     case WM_SIZE:
         if (app && app->ready) Layout(window, *app);
         return 0;
     case WM_GETMINMAXINFO:
-        reinterpret_cast<MINMAXINFO*>(lParam)->ptMinTrackSize = {700, 600};
+        reinterpret_cast<MINMAXINFO*>(lParam)->ptMinTrackSize = {700, 630};
         return 0;
     case WM_PAINT: {
         PAINTSTRUCT paint{};

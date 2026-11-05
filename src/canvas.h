@@ -4,6 +4,7 @@
 
 namespace {
 constexpr wchar_t kCanvasClass[] = L"GRFTCCanvas";
+constexpr UINT kCurveChanged = WM_APP + 1;
 struct Canvas {
     Curve curve;
     bool drawing = false;
@@ -26,8 +27,8 @@ void StopDrawing(HWND window, Canvas& canvas) {
 void DrawAt(HWND window, Canvas& canvas, LPARAM position, bool start) {
     const RECT r = PlotRect(window);
     if (r.right <= r.left || r.bottom <= r.top) return;
-    const double x = std::clamp(static_cast<double>(GET_X_LPARAM(position) - r.left)
-        / (r.right - r.left), 0.0, 1.0);
+    const double x = GraphXFromFraction(static_cast<double>(GET_X_LPARAM(position) - r.left)
+        / (r.right - r.left));
     const double y = std::clamp(static_cast<double>(GET_Y_LPARAM(position) - r.top)
         / (r.bottom - r.top), 0.0, 1.0);
     const int row = static_cast<int>(y * Curve::kLast + 0.5);
@@ -36,6 +37,7 @@ void DrawAt(HWND window, Canvas& canvas, LPARAM position, bool start) {
     canvas.previousRow = row;
     canvas.previousX = x;
     InvalidateRect(window, nullptr, FALSE);
+    SendMessageW(GetParent(window), kCurveChanged, 0, 0);
 }
 void PaintCanvas(HWND window, HDC dc, const Canvas& canvas) {
     RECT client{};
@@ -47,7 +49,7 @@ void PaintCanvas(HWND window, HDC dc, const Canvas& canvas) {
     points[0] = {r.left, r.top};
     for (int i = 0; i <= Curve::kLast; ++i) {
         points[static_cast<std::size_t>(i) + 1] = {
-            r.left + static_cast<LONG>(canvas.curve.x[static_cast<std::size_t>(i)]
+            r.left + static_cast<LONG>(GraphXToFraction(canvas.curve.x[static_cast<std::size_t>(i)])
                 * (r.right - r.left) + 0.5),
             r.top + MulDiv(i, r.bottom - r.top, Curve::kLast)};
     }
@@ -63,9 +65,16 @@ void PaintCanvas(HWND window, HDC dc, const Canvas& canvas) {
     LineTo(dc, r.right, r.bottom);
     const auto oldFont = SelectObject(dc, GetStockObject(DEFAULT_GUI_FONT));
     const int oldMode = SetBkMode(dc, TRANSPARENT);
-    TextOutW(dc, r.left - 28, r.top, L"x=0", 3);
-    TextOutW(dc, r.left - 12, r.bottom + 4, L"0", 1);
-    TextOutW(dc, r.right + 5, r.bottom - 8, L"x", 1);
+    wchar_t label[64]{};
+    auto tick = [&](double value, int left, int top) {
+        std::swprintf(label, 64, L"%.3g", value);
+        TextOutW(dc, left, top, label, static_cast<int>(std::wcslen(label)));
+    };
+    tick(kGraphYMax, r.left - 26, r.top);
+    tick(kGraphYMin, r.left - 26, r.bottom - 14);
+    tick(kGraphXMin, r.left - 4, r.bottom + 4);
+    tick(kGraphXMax, r.right - 18, r.bottom + 4);
+    TextOutW(dc, r.right + 5, r.bottom - 14, L"x", 1);
     TextOutW(dc, r.left - 12, r.top - 18, L"y", 1);
     SetBkMode(dc, oldMode);
     SelectObject(dc, oldFont);

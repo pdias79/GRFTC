@@ -13,9 +13,9 @@ int main() {
     check(std::abs(c.x[150] - 0.6) < 1e-12);
     c.DrawSegment(150, 0.6, 150, 0.9); // horizontal movement: one x per y
     check(c.x[150] == 0.9);
-    c.DrawSegment(-100, -1, Curve::kLast + 100, 2);
-    check(c.x.front() == 0 && c.x.back() == 1);
-    for (double x : c.x) check(x >= 0 && x <= 1);
+    c.DrawSegment(-100, -1, Curve::kLast + 100, 3);
+    check(c.x.front() == 0 && c.x.back() == 2);
+    for (double x : c.x) check(x >= 0 && x <= 2);
     std::cout << failures << " failure(s)\n";
     return failures ? 1 : 0;
 }
