@@ -3,7 +3,7 @@ project(GRFTC LANGUAGES CXX)
 if(NOT WIN32)
     message(FATAL_ERROR "GRFTC requires Windows and the Windows SDK")
 endif()
-add_executable(GRFTC WIN32 src/main.cpp src/RFTC.cpp)
+add_executable(GRFTC WIN32 src/main.cpp src/RFTC.cpp src/initial_curve.cpp src/ao.cpp)
 # Copy on every build, including builds where the executable is already up to date.
 add_custom_target(grftc_configurations ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:GRFTC>"
@@ -30,6 +30,9 @@ if(BUILD_TESTING)
     add_executable(curve_tests tests/curve_tests.cpp)
     target_compile_features(curve_tests PRIVATE cxx_std_17)
     add_test(NAME curve COMMAND curve_tests)
+    add_executable(ao_tests tests/ao_tests.cpp src/ao.cpp src/initial_curve.cpp)
+    target_compile_features(ao_tests PRIVATE cxx_std_17)
+    add_test(NAME ao COMMAND ao_tests)
     add_executable(statepoint_tests tests/statepoint_tests.cpp)
     target_compile_features(statepoint_tests PRIVATE cxx_std_17)
     add_test(NAME statepoint COMMAND statepoint_tests)
