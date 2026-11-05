@@ -3,7 +3,15 @@ project(GRFTC LANGUAGES CXX)
 if(NOT WIN32)
     message(FATAL_ERROR "GRFTC requires Windows and the Windows SDK")
 endif()
-add_executable(GRFTC WIN32 src/main.cpp)
+add_executable(GRFTC WIN32 src/main.cpp src/RFTC.cpp)
+# Copy on every build, including builds where the executable is already up to date.
+add_custom_target(grftc_configurations ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:GRFTC>"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/configurations.txt"
+        "$<TARGET_FILE_DIR:GRFTC>/configurations.txt"
+    VERBATIM)
+add_dependencies(GRFTC grftc_configurations)
 target_compile_features(GRFTC PRIVATE cxx_std_17)
 target_link_libraries(GRFTC PRIVATE user32 gdi32)
 if(MSVC)
@@ -16,10 +24,13 @@ elseif(MINGW)
 endif()
 include(CTest)
 if(BUILD_TESTING)
-    add_executable(numeric_tests tests/numeric_tests.cpp)
+    add_executable(numeric_tests tests/numeric_tests.cpp src/RFTC.cpp)
     target_compile_features(numeric_tests PRIVATE cxx_std_17)
     add_test(NAME numeric COMMAND numeric_tests)
     add_executable(curve_tests tests/curve_tests.cpp)
     target_compile_features(curve_tests PRIVATE cxx_std_17)
     add_test(NAME curve COMMAND curve_tests)
+    add_executable(statepoint_tests tests/statepoint_tests.cpp)
+    target_compile_features(statepoint_tests PRIVATE cxx_std_17)
+    add_test(NAME statepoint COMMAND statepoint_tests)
 endif()

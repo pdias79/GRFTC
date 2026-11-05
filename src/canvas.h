@@ -84,6 +84,10 @@ LRESULT CALLBACK CanvasProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         const POINT point{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
         const RECT plot = PlotRect(window);
         if (canvas && PtInRect(&plot, point)) {
+            // Leaving an edit for the canvas must also run its focus-loss validation.
+            SetFocus(window);
+            // A validation dialog may have consumed the button release.
+            if ((GetKeyState(VK_LBUTTON) & 0x8000) == 0) return 0;
             SetCapture(window);
             canvas->drawing = GetCapture() == window;
             if (canvas->drawing) DrawAt(window, *canvas, lParam, true);
