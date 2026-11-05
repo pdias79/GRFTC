@@ -19,7 +19,11 @@ int main() {
     }
     check(ValidateField(3, L"1,4", value) && value == 1.4);
     check(ValidateField(5, L"1,10", value) && value == 1.1);
-    check(ValidateField(4, L"-1000000", value)); // no specified flow range
+    check(!ValidateField(4, L"-1000000", value));
+    check(ValidateField(4, L"30", value));
+    check(ValidateField(4, L"110", value));
+    check(!ValidateField(4, L"29.99", value));
+    check(!ValidateField(4, L"110.01", value));
     check(!ValidateField(6, L"100", value));
     std::istringstream config("\xef\xbb\xbf# Configurations\r\n CONFIG1 \r\n\nCONFIG6\n  Other name  \r\n");
     const auto names = ReadConfigurations(config);

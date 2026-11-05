@@ -13,7 +13,7 @@ inline constexpr std::array<ChampStatepoint, 6> kChamps{{
     {L"Temp\u00e9rature", L"290", &kLimitesTemperature},
     {L"Pression", L"155", &kLimitesPression},
     {L"FDH", L"1.4", &kLimitesFDH},
-    {L"D\u00e9bit relatif", L"100", nullptr},
+    {L"D\u00e9bit relatif", L"100", &kLimitesDebit},
     {L"FDHE1", L"1.00", &kLimitesFDHE1}
 }};
 inline bool ValidateField(std::size_t index, const std::wstring& text, double& value) {

@@ -7,9 +7,9 @@ Petite application Windows native en C++17, avec contrôles Win32 et rendu GDI, 
 - Liste de configurations lue depuis `configurations.txt`
 - Six champs : Puissance, Température, Pression, FDH, Débit relatif, FDHE1
 - Décimales avec point ou virgule, nombres négatifs et notation scientifique acceptés
-- Calcul immédiat `RFTC = Puissance - Température`, isolé dans `src/RFTC.cpp`
+- Calcul immédiat selon la configuration, isolé dans `src/RFTC.cpp`
 - Une saisie vide, invalide ou hors limites suspend l'affichage du résultat
-- Un message d’erreur précise la contrainte à la sortie d’un champ invalide
+- À la sortie d’un champ invalide : message d’erreur, puis rétablissement de la dernière saisie validée pour ce champ
 - Navigation par Tab et Maj+Tab
 - Canvas blanc GDI : dessin de `x = f(y)` au bouton gauche et remplissage rouge jusqu’à `x=0`
 - Une seule abscisse par hauteur ; les mouvements rapides sont interpolés
@@ -33,7 +33,7 @@ Les seules bibliothèques graphiques utilisées sont celles de Windows (`user32`
 
 1. Au démarrage : CONFIG1, puissance 100, température 290, pression 155, FDH 1.4, débit relatif 100 et FDHE1 1.00 ; `RFTC=-190`
 2. Entrer Puissance = 150 et Température = 300 : `RFTC=-150`
-3. Entrer `abc`, laisser un champ vide ou dépasser ses limites puis quitter le champ par Tab ou en cliquant ailleurs : message d’erreur ; le résultat reste suspendu jusqu’à correction
+3. Saisir une puissance valide (par exemple 120), quitter le champ, puis saisir `abc`, vider le champ ou dépasser ses limites : après le message d’erreur, 120 est rétabli et le résultat recalculé
 4. Parcourir la liste et les six champs avec Tab et Maj+Tab ; vérifier les bornes inclusives du tableau ci-dessous
 5. Dans le canvas, maintenir le bouton gauche et tracer verticalement : la courbe noire et son aire rouge suivent la souris
 6. Repasser en sens inverse : seules les hauteurs parcourues sont modifiées
@@ -64,10 +64,10 @@ Le programme lit ce fichier **à côté de GRFTC.exe**, quel que soit le dossier
 | Température | 290 | 250 | 350 |
 | Pression | 155 | 130 | 170 |
 | FDH | 1.4 | 1.0 | 5.0 |
-| Débit relatif | 100 | Non imposé | Non imposé |
+| Débit relatif | 100 | 30 | 110 |
 | FDHE1 | 1.00 | 1.00 | 1.10 |
 
-Les bornes sont regroupées dans `src/limites_statepoint.h` : les modifier puis recompiler. Les valeurs initiales sont dans `src/statepoint.h`. Tous les champs doivent contenir un double fini ; le point, la virgule et la notation scientifique sont acceptés. Une saisie invalide est conservée pour correction, avec un message à la perte du focus et aucun calcul sur des paramètres invalides.
+Les bornes sont regroupées dans `src/limites_statepoint.h` : les modifier puis recompiler. Les valeurs initiales sont dans `src/statepoint.h`. Tous les champs doivent contenir un double fini ; le point, la virgule et la notation scientifique sont acceptés. Une saisie invalide déclenche un message à la perte du focus. Après fermeture du message, la dernière saisie validée à la sortie de ce champ est rétablie (ou sa valeur initiale si aucune nouvelle valeur n’a été validée). Le résultat est alors recalculé.
 
 ## Fonction RFTC
 
@@ -78,6 +78,13 @@ double RFTC(char* nom_configuration, double puissance, double temperature,
             double pression, double fdh, double debit, double fhde1);
 ```
 
-Le nom sélectionné est transmis en UTF-8 avec les six valeurs validées dans cet ordre. La formule reste provisoirement `puissance - temperature` ; tous les arguments sont disponibles pour le futur calcul.
+Le nom sélectionné est transmis en UTF-8 avec les six valeurs validées dans cet ordre. La comparaison du nom est exacte et sensible à la casse :
 
-Les tests `numeric`, `statepoint` et `curve` couvrent la conversion numérique, la formule provisoire, les valeurs initiales, les limites inclusives et leur dépassement, la lecture d’une liste de configurations de longueur variable et l’interpolation de la courbe.
+- `CONFIG1` : `puissance - temperature`
+- Tout autre nom : `puissance * fdh - temperature + pression`
+
+Avec les valeurs initiales, CONFIG1 donne `-190` et les autres configurations donnent `5`. Le débit et FDHE1 restent transmis à la fonction, sans intervenir dans ces formules.
+
+Vérifier également le rétablissement de 100 après une première saisie invalide au démarrage, la conservation des virgules dans une saisie validée, les débits 30 et 110 acceptés, et 29.99 et 110.01 refusés.
+
+Les tests `numeric`, `statepoint` et `curve` couvrent la conversion numérique, les deux formules, les valeurs initiales, les limites inclusives et leur dépassement, la lecture d’une liste de configurations de longueur variable et l’interpolation de la courbe.

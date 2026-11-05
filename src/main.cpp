@@ -22,6 +22,7 @@ constexpr int kConfigurationId = 90;
 struct App {
     std::array<HWND, kChamps.size()> labels{};
     std::array<HWND, kChamps.size()> edits{};
+    std::array<std::wstring, kChamps.size()> lastValid{};
     HWND configurationLabel{};
     HWND configuration{};
     std::vector<std::string> configurations;
@@ -85,7 +86,11 @@ std::wstring FieldText(HWND edit) {
 void ValidateOnExit(HWND window, App& app, std::size_t index) {
     if (!app.ready || app.showingError) return;
     double value = 0;
-    if (ValidateField(index, FieldText(app.edits[index]), value)) return;
+    const std::wstring text = FieldText(app.edits[index]);
+    if (ValidateField(index, text, value)) {
+        app.lastValid[index] = text;
+        return;
+    }
     std::wstring message = kChamps[index].nom;
     message += L" : saisissez un nombre r\u00e9el fini (double).";
     if (const auto* limits = kChamps[index].limites) {
@@ -96,6 +101,8 @@ void ValidateOnExit(HWND window, App& app, std::size_t index) {
     }
     app.showingError = true;
     MessageBoxW(window, message.c_str(), L"Valeur invalide", MB_OK | MB_ICONERROR);
+    // Restore only after the user dismisses the error; EN_CHANGE refreshes RFTC.
+    SetWindowTextW(app.edits[index], app.lastValid[index].c_str());
     app.showingError = false;
 }
 void UpdateResult(App& app) {
@@ -154,6 +161,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             app->edits[i] = AddControl(window, L"EDIT", kChamps[i].initial, WS_TABSTOP | ES_AUTOHSCROLL,
                 kFirstEdit + static_cast<int>(i), app->font);
             if (!app->labels[i] || !app->edits[i]) return -1;
+            app->lastValid[i] = kChamps[i].initial;
             SendMessageW(app->edits[i], EM_SETLIMITTEXT, 100, 0);
         }
         app->result = AddControl(window, L"STATIC", L"RFTC=0", SS_LEFT, 0, app->font);
